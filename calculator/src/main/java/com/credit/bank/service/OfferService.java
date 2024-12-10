@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,13 +23,16 @@ public class OfferService {
     private final ScoringService scoringService;
 
     public List<LoanOfferDto> generateOffer(LoanStatementRequestDto requestDto) {
-        log.info("generate offer");
-        return List.of(
-                createOffer(false, false, requestDto),
-                createOffer(false, true, requestDto),
-                createOffer(true, false, requestDto),
-                createOffer(true, true, requestDto)
-        );
+        log.info("generate offer {} ", requestDto.toString());
+
+        List<LoanOfferDto> createOfferList = new ArrayList<>();
+        createOfferList.add(createOffer(true, true, requestDto));
+        createOfferList.add(createOffer(true, false, requestDto));
+        createOfferList.add(createOffer(false, true, requestDto));
+        createOfferList.add(createOffer(false, false, requestDto));
+
+//        createOfferList.sort(Comparator.comparing(LoanOfferDto::getIsInsuranceEnabled).thenComparing(LoanOfferDto::getIsSalaryClient));
+        return createOfferList;
     }
 
     private LoanOfferDto createOffer(Boolean isInsuranceEnable,
@@ -52,7 +57,7 @@ public class OfferService {
         loanOfferDto.setIsInsuranceEnabled(isInsuranceEnable);
         loanOfferDto.setIsSalaryClient(isSalaryClient);
 
-        log.info("created offer " + loanOfferDto);
+        log.info("created offer {} ", loanOfferDto);
         return loanOfferDto;
     }
 

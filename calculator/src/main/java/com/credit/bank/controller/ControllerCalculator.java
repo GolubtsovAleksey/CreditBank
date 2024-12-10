@@ -33,14 +33,14 @@ public class ControllerCalculator {
     @Operation(summary = "выполнение прескоринга данных")
     @PostMapping("/offers")
     public List<LoanOfferDto> calculatorOffers(@RequestBody @Valid LoanStatementRequestDto loanStatementRequestDto) {
-        log.info("try to add loan offer " + loanStatementRequestDto.toString());
+        log.info("try to add loan offer {} ", loanStatementRequestDto.toString());
         return offerService.generateOffer(loanStatementRequestDto);
     }
 
     @Operation(summary = "выполнение скоринга данных")
     @PostMapping("/calc")
     public CreditDto calculatorCalc(@RequestBody @Valid ScoringDataDto scoringDataDto) {
-        log.info("try to add credit " + scoringDataDto.toString());
+        log.info("try to add credit {} ", scoringDataDto.toString());
         return scoringService.credit(scoringDataDto);
     }
 
