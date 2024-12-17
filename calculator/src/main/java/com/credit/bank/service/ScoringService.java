@@ -33,11 +33,11 @@ public class ScoringService {
         if (Boolean.FALSE.equals(isInsuranceEnable) && Boolean.FALSE.equals(isSalaryClient)) {
             return BigDecimal.valueOf(((long) baseCreditRate + 3));
         } else if (Boolean.FALSE.equals(isInsuranceEnable) && Boolean.TRUE.equals(isSalaryClient)) {
-            return BigDecimal.valueOf(((long)baseCreditRate + 1));
+            return BigDecimal.valueOf(((long) baseCreditRate + 1));
         } else if (Boolean.TRUE.equals(isInsuranceEnable) && Boolean.FALSE.equals(isSalaryClient)) {
-            return BigDecimal.valueOf(((long)baseCreditRate - 1));
+            return BigDecimal.valueOf(((long) baseCreditRate - 1));
         } else {
-            return BigDecimal.valueOf(((long)baseCreditRate - 3));
+            return BigDecimal.valueOf(((long) baseCreditRate - 3));
         }
     }
 
@@ -49,7 +49,7 @@ public class ScoringService {
     }
 
     public BigDecimal percentOf(BigDecimal percentage, BigDecimal total) {
-        return percentage.multiply(total).divide(ONE_HUNDRED, 2, RoundingMode.HALF_UP);
+        return percentage.multiply(total).divide(ONE_HUNDRED, 2, RoundingMode.CEILING);
     }
 
     public void scoringRequestValidation(ScoringDataDto scoringDataDto) {
@@ -99,13 +99,15 @@ public class ScoringService {
         creditDto.setRate(rate);
         creditDto.setIsInsuranceEnabled(scoringDataDto.getIsInsuranceEnabled());
         creditDto.setIsSalaryClient(scoringDataDto.getIsSalaryClient());
-        creditDto.setPaymentSchedule(monthlyPaymentSchedule(rate, amount, scoringDataDto.getTerm()));
+
 
 //        BigDecimal loanInterestCalculation = loanInterestCalculation(rate, amount);              // расчёт % по кредиту
         BigDecimal paymentPerMonth = paymentPerMonth(amount, scoringDataDto.getTerm(), rate);            // плата в месяц
-        BigDecimal calculatePck = calculatePck(BigDecimal.valueOf(scoringDataDto.getTerm()), paymentPerMonth, amount);                          // расчёт пск
+        BigDecimal calculatePck = calculatePck(paymentPerMonth, scoringDataDto.getTerm());                          // расчёт пск
 
-        if (employmentDto.getSalary().divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP).compareTo(paymentPerMonth) != 1) {
+        creditDto.setPaymentSchedule(monthlyPaymentSchedule(paymentPerMonth, amount, scoringDataDto.getTerm(), rate));
+
+        if (employmentDto.getSalary().divide(BigDecimal.valueOf(2), 2, RoundingMode.CEILING).compareTo(paymentPerMonth) != 1) {
             throw new CreditUnavailableException("credit not available, salary does not meet the requirements");
         }
         creditDto.setMonthlyPayment(paymentPerMonth);
@@ -115,43 +117,44 @@ public class ScoringService {
         return creditDto;
     }
 
-    private List<PaymentScheduleElementDto> monthlyPaymentSchedule(BigDecimal paymentPerMonth, BigDecimal totalAmount, int term) {  // расчет графика платежей по кредиту
+    private List<PaymentScheduleElementDto> monthlyPaymentSchedule(BigDecimal paymentPerMonth, BigDecimal totalAmount, int term, BigDecimal rate) {  // расчет графика платежей по кредиту
         List<PaymentScheduleElementDto> paymentScheduleElementDtoList = new ArrayList<>();
-        for (int fullTerm = 0; fullTerm < term; fullTerm++) {
+        BigDecimal remaining = totalAmount;
+        BigDecimal deptPayment = BigDecimal.ZERO;
+        for (int counter = 0; counter < term; counter++) {
             PaymentScheduleElementDto scheduleElementDto = new PaymentScheduleElementDto();
-            BigDecimal remainingDebt = totalAmount.subtract(paymentPerMonth);
-            scheduleElementDto.setRemainingDebt(remainingDebt);
+            scheduleElementDto.setNumber(counter + 1);
+            scheduleElementDto.setDate(LocalDate.now().plusMonths(counter + 1));
+            scheduleElementDto.setTotalPayment(paymentPerMonth);
+
+            BigDecimal interestPayment = loanInterestCalculation(rate, paymentPerMonth);
+            scheduleElementDto.setInterestPayment(interestPayment);
+            deptPayment = paymentPerMonth.subtract(interestPayment);
+            scheduleElementDto.setDebtPayment(deptPayment);
+            remaining = remaining.subtract(deptPayment);
+            scheduleElementDto.setRemainingDebt(remaining);
+
             paymentScheduleElementDtoList.add(scheduleElementDto);
         }
         return paymentScheduleElementDtoList;
     }
 
-    private BigDecimal loanInterestCalculation(BigDecimal rate, BigDecimal amount) {   // сумма процента переплаты в месяц
-        rate = rate.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
-        BigDecimal loanInterestCalc = amount.multiply(rate).divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
-        return loanInterestCalc;
+    private BigDecimal loanInterestCalculation(BigDecimal rate, BigDecimal monthlyPayment) {   // сумма процента переплаты в месяц
+        rate = rate.divide(BigDecimal.valueOf(100), 3, RoundingMode.CEILING);
+        return monthlyPayment.multiply(rate);
     }
 
     private BigDecimal paymentPerMonth(BigDecimal totalAmount, Integer term, BigDecimal rate) {   //Формула расчета аннуитетного платежа:
-        BigDecimal monthlyRate = rate.divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
-        BigDecimal addAction1 = monthlyRate.add(BigDecimal.valueOf(1));
-        BigDecimal K = BigDecimal.valueOf(Math.pow(addAction1.doubleValue(), term));
-        BigDecimal action3 = monthlyRate.multiply(K);
-        BigDecimal action4 = K.subtract(BigDecimal.valueOf(1));
-        BigDecimal KA = action3.divide(action4, 2, RoundingMode.HALF_UP);
-        BigDecimal action6 = totalAmount.multiply(KA);
-        return action6;
+        BigDecimal monthlyRate = rate.divide(BigDecimal.valueOf(1200), 4, RoundingMode.CEILING);
+        BigDecimal creditCoef = BigDecimal.valueOf(Math.pow(monthlyRate.add(BigDecimal.valueOf(1)).doubleValue(), term));
+        BigDecimal annutyCoef = monthlyRate.multiply(creditCoef).divide(creditCoef.subtract(BigDecimal.valueOf(1)), 4, RoundingMode.CEILING);
+        return totalAmount.multiply(annutyCoef);
+
 
     }
 
-    private BigDecimal calculatePck(BigDecimal term,                           // вычисляет пск
-                                    BigDecimal paymentPerMonth,
-                                    BigDecimal amount) {
-        BigDecimal action1 = term.divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
-        BigDecimal action2 = paymentPerMonth.multiply(term).divide(amount, 2, RoundingMode.HALF_UP).subtract(BigDecimal.valueOf(1));
-        BigDecimal action3 = action2.divide(action1, 2, RoundingMode.HALF_UP);
-        BigDecimal action4 = action3.multiply(BigDecimal.valueOf(100));
-        return action4;
+    private BigDecimal calculatePck(BigDecimal monthlyPayment, Integer term) {
+        return BigDecimal.valueOf(term).multiply(monthlyPayment);
 
     }
 }

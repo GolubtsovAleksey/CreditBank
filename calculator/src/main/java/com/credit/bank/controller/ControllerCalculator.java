@@ -3,6 +3,7 @@ package com.credit.bank.controller;
 import com.credit.bank.dto.*;
 import com.credit.bank.service.OfferService;
 import com.credit.bank.service.ScoringService;
+//import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,4 @@ public class ControllerCalculator {
         log.info("try to add credit {} ", scoringDataDto.toString());
         return scoringService.credit(scoringDataDto);
     }
-
-
 }
